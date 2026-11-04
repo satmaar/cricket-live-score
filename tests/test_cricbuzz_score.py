@@ -37,13 +37,15 @@ class FakeLocator:
 
 
 class FakePage:
-    def __init__(self, texts: list[str], timeout: bool = False):
+    def __init__(self, texts: list[str], timeout: bool = False, status: int = 200):
         self.locator_value = FakeLocator(texts, timeout)
+        self.status = status
         self.goto_args = None
         self.screenshot_args = None
 
     def goto(self, *args, **kwargs):
         self.goto_args = (args, kwargs)
+        return types.SimpleNamespace(status=self.status)
 
     def locator(self, selector):
         self.selector = selector
@@ -125,6 +127,15 @@ class CricbuzzScoreTests(unittest.TestCase):
         self.assertEqual(page.screenshot_args, {"path": "score.png", "full_page": True})
         self.assertTrue(browser.closed)
 
+    def test_integration_http_error_is_not_reported_as_no_live_match(self):
+        page = FakePage([], status=403)
+        browser = FakeBrowser(page)
+        context = FakePlaywrightContext(browser)
+        with patch.object(self.app, "sync_playwright", return_value=context):
+            with self.assertRaisesRegex(RuntimeError, "HTTP 403"):
+                self.app.capture_score()
+        self.assertTrue(browser.closed)
+
     def test_integration_no_score_still_saves_screenshot_and_closes_browser(self):
         page = FakePage([], timeout=True)
         browser = FakeBrowser(page)
@@ -139,7 +150,7 @@ class CricbuzzScoreTests(unittest.TestCase):
     def test_regression_success_and_no_live_score_messages(self):
         for return_value, expected in [
             ("NZ 185 (40.2 Ov)", "NZ 185 (40.2 Ov)\nSaved screenshot: score.png\n"),
-            (None, "No match score is currently available on Cricbuzz.\nSaved screenshot: score.png\n"),
+            (None, "No live match score is currently available on Cricbuzz.\nSaved screenshot: score.png\n"),
         ]:
             output = io.StringIO()
             with patch.object(self.app, "capture_score", return_value=return_value):

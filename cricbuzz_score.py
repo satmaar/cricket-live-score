@@ -12,8 +12,9 @@ from playwright.sync_api import sync_playwright
 
 
 CRICBUZZ_URL = "https://www.cricbuzz.com/"
-# Verified on Cricbuzz's rendered home page: this class is used for score text.
-SCORE_SELECTOR = ".cb-lv-scrs-col"
+# Scope score text to cards carrying Cricbuzz's live-status class. This avoids
+# reporting the most recent completed match as though it were currently live.
+SCORE_SELECTOR = ".cb-lv-scrs-well:has(.cb-text-live) .cb-lv-scrs-col"
 DEFAULT_TIMEOUT_MS = 15_000
 DEFAULT_SCREENSHOT = Path("score.png")
 
@@ -33,14 +34,18 @@ def capture_score(
 ) -> str | None:
     """Load the page, wait for a score card, and save a screenshot.
 
-    Returns ``None`` if Cricbuzz has no rendered score card before the timeout.
+    Returns ``None`` if Cricbuzz has no rendered live score before the timeout.
     The browser is always closed, including on navigation or screenshot errors.
     """
     with sync_playwright() as playwright:
         browser = playwright.chromium.launch(headless=headless)
         try:
             page = browser.new_page()
-            page.goto(CRICBUZZ_URL, wait_until="domcontentloaded", timeout=timeout_ms)
+            response = page.goto(
+                CRICBUZZ_URL, wait_until="domcontentloaded", timeout=timeout_ms
+            )
+            if response is not None and response.status >= 400:
+                raise RuntimeError(f"Cricbuzz returned HTTP {response.status}")
             score = None
             try:
                 locator = page.locator(SCORE_SELECTOR)
@@ -89,7 +94,7 @@ def main(argv: list[str] | None = None) -> int:
         return 1
 
     if score is None:
-        print("No match score is currently available on Cricbuzz.")
+        print("No live match score is currently available on Cricbuzz.")
         print(f"Saved screenshot: {args.screenshot}")
         return 0
     print(score)

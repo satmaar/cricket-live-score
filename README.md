@@ -27,9 +27,9 @@ For headless use, or to change the screenshot path and wait limit:
 python cricbuzz_score.py --headless --screenshot score.png --timeout 20000
 ```
 
-If Cricbuzz has no score card, the script reports that state and still saves a
-screenshot. A browser or navigation failure is reported on stderr with a
-nonzero exit status.
+If Cricbuzz has no live score card, the script reports that state and still
+saves a screenshot. HTTP, browser, or navigation failures are reported on
+stderr with a nonzero exit status.
 
 ## Checks
 
